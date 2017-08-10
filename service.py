@@ -48,7 +48,13 @@ def draw(y, sleep=False):
     else:
         return 120000, 0
 
-##utils
+## utils
+
+# This is here because putting it in a seperate utils.py wouldn't work:
+# When importing utils in service, __init__.py (and by this, the main app)
+# is run. Unfortunately, there also is no way to find out in __init__.py
+# if it's run as an app or merely imported :/
+# Really unfortunate design oversight in the badge firmware
 
 import utime
 import urequests as requests
