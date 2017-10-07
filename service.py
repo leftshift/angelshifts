@@ -1,4 +1,4 @@
-import ugfx, badge, wifi, time
+import ugfx, badge, wifi, time, utime, easyrtc
 
 next_shift = None
 wakeup_interval = 60000  # in miliseconds, to make sure the screen gets updated
@@ -18,7 +18,7 @@ def loop():
     print("last update: ", last_update)
     if api_key:
         # Perform update if update_interval has passed
-        if last_update + update_interval < utime.time():
+        if last_update + update_interval < easyrtc.time.time():
             print("angelshifts: updating...")
             wifi.init()
             tries = 0
@@ -36,14 +36,14 @@ def loop():
                 badge.nvs_set_u8("engel", "notified", 0)
             else:
                 badge.nvs_set_str("engel", "shift_name", "")
-            badge.nvs_set_str("engel", "update", str(utime.time()))
+            badge.nvs_set_str("engel", "update", str(easyrtc.time.time()))
         else:
             print("angelshifts: no update needed")
 
         # Notify about upcoming shift if it starts in less than notify_time
         if badge.nvs_get_str("engel", "shift_name", "") and not bool(badge.nvs_get_u8("engel", "notified")):
             start = int(badge.nvs_get_str("engel", "shift_start", ""))
-            now = utime.time() + timezone_offset
+            now = easyrtc.time.time()
             if start > now and start < now + notify_time:
                 global notified
                 badge.vibrator_init()
@@ -80,22 +80,21 @@ def draw(y, sleep=False):
 # if it's run as an app or merely imported :/
 # Really unfortunate design oversight in the badge firmware
 
-import utime
+import easyrtc
 import urequests as requests
 engelsystem_url = "https://engel.hackover.de/?p=shifts_json_export&key={}"
 show_shifts_in_past = False
 
-timezone_offset = - 7200
 
 def get_shifts(api_key):
     r = requests.get(engelsystem_url.format(api_key))
     all_shifts = r.json()
-    now = utime.time() + timezone_offset
+    now = easyrtc.time.time()
     return [s for s in all_shifts if show_shifts_in_past or int(s['end']) > now]
 
 def get_next_shift(api_key):
     shifts = get_shifts(api_key)
-    now = utime.time() + timezone_offset
+    now = easyrtc.time.time()
     for shift in shifts:
         if int(shift['end']) > now:
             return shift
@@ -120,7 +119,7 @@ def truncate_timedelta_text(timedelta_tuple):
 
 
 def generate_timedelta_text(start, end):
-    now = utime.time() + timezone_offset
+    now = easyrtc.time.time()
     if now < start:
         s = "in"
         delta = start - now
