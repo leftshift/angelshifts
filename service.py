@@ -1,7 +1,11 @@
 import ugfx, badge, wifi, time
 
 next_shift = None
-update_interval = 300
+wakeup_interval = 60000  # in miliseconds, to make sure the screen gets updated
+update_interval = 300  # in seconds
+wifi_tries = 50
+notify_time = 600  # in seconds
+
 
 def setup():
     global api_key
@@ -13,22 +17,42 @@ def loop():
     last_update = int(badge.nvs_get_str("engel", "update", "0"))
     print("last update: ", last_update)
     if api_key:
+        # Perform update if update_interval has passed
         if last_update + update_interval < utime.time():
             print("angelshifts: updating...")
             wifi.init()
+            tries = 0
             while not wifi.sta_if.isconnected():
                 time.sleep(0.1)
-                pass
+                tries += 1
+                if tries >= wifi_tries:
+                    return wakeup_interval
             next_shift = get_next_shift(api_key)
             if next_shift:
                 badge.nvs_set_str("engel", "shift_name", next_shift["name"])
                 badge.nvs_set_str("engel", "shift_loc", next_shift["Name"])
                 badge.nvs_set_str("engel", "shift_start", next_shift["start"])
                 badge.nvs_set_str("engel", "shift_end", next_shift["end"])
+                badge.nvs_set_u8("engel", "notified", 0)
             else:
                 badge.nvs_set_str("engel", "shift_name", "")
             badge.nvs_set_str("engel", "update", str(utime.time()))
-        return 300000
+        else:
+            print("angelshifts: no update needed")
+
+        # Notify about upcoming shift if it starts in less than notify_time
+        if badge.nvs_get_str("engel", "shift_name", "") and not bool(badge.nvs_get_u8("engel", "notified")):
+            start = int(badge.nvs_get_str("engel", "shift_start", ""))
+            now = utime.time() + timezone_offset
+            if start > now and start < now + notify_time:
+                global notified
+                badge.vibrator_init()
+                badge.vibrator_activate(200)
+                ugfx.string(0, 0, "NEXT SHIFT IN {} MINUTES!".format(notify_time // 60), "PermanentMarker22", ugfx.BLACK)
+                ugfx.flush()
+
+
+        return wakeup_interval
     else:
         print("no api key set up")
         return 0
@@ -58,7 +82,7 @@ def draw(y, sleep=False):
 
 import utime
 import urequests as requests
-engelsystem_url = "https://volunteer.sha2017.org/?p=shifts_json_export&key={}"
+engelsystem_url = "https://engel.hackover.de/?p=shifts_json_export&key={}"
 show_shifts_in_past = False
 
 timezone_offset = - 7200
